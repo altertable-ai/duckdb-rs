@@ -231,6 +231,10 @@ pub struct Connection {
 unsafe impl Send for Connection {}
 
 impl Connection {
+    pub fn raw_connection(&self) -> ffi::duckdb_connection {
+        self.db.borrow().con
+    }
+
     /// Open a new connection to a DuckDB database.
     ///
     /// `Connection::open(path)` is equivalent to
