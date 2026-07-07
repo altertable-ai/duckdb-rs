@@ -105,9 +105,9 @@ impl InnerConnection {
         // columns can be exported through the Arrow C interface. Best-effort:
         // without it, queries with VARIANT result columns fail during Arrow
         // conversion.
-        #[cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+        #[cfg(feature = "variant-arrow")]
         unsafe {
-            ffi::duckdb_rs_register_variant_arrow(raw);
+            ffi::duckdb_register_parquet_variant_arrow(raw);
         }
         unsafe { Self::new(Arc::new(Mutex::new(DatabaseHandle::new(raw, close_on_drop)))) }
     }

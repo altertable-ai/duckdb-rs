@@ -1,9 +1,9 @@
 //! VARIANT columns cannot cross the Arrow C interface unless an
-//! `arrow.parquet.variant` type extension is registered. With the `parquet`
-//! feature (cc bundled backend), duckdb-rs registers that extension on open,
+//! `arrow.parquet.variant` type extension is registered. With the `variant-arrow`
+//! feature, duckdb-rs registers that extension on open,
 //! so VARIANT columns surface as the canonical struct of `metadata`/`value`
 //! binaries.
-#![cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+#![cfg(feature = "variant-arrow")]
 
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ fn setup() -> Result<Connection> {
     let conn = Connection::open_in_memory()?;
     conn.execute_batch(
         "CREATE TABLE t (id INT, attributes VARIANT);
-         INSERT INTO t VALUES (1, '{\"a\": 1}'::JSON::VARIANT);",
+         INSERT INTO t VALUES (1, struct_pack(a := 1)::VARIANT);",
     )?;
     Ok(conn)
 }
@@ -106,10 +106,10 @@ fn variant_query_arrow_preserves_parameters() -> Result<()> {
 }
 
 #[test]
-fn variant_roundtrips_through_json_cast() -> Result<()> {
+fn variant_roundtrips_through_varchar_cast() -> Result<()> {
     let conn = setup()?;
-    let json: String = conn.query_row("SELECT attributes::JSON FROM t", [], |row| row.get(0))?;
-    assert_eq!(json, r#"{"a":1}"#);
+    let json: String = conn.query_row("SELECT attributes::VARCHAR FROM t", [], |row| row.get(0))?;
+    assert_eq!(json, "{'a': 1}");
     Ok(())
 }
 

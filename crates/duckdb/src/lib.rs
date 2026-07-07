@@ -66,6 +66,9 @@ use std::{
     result, str,
 };
 
+#[cfg(feature = "variant-arrow")]
+use std::{ffi::CStr, ptr};
+
 use crate::{cache::StatementCache, inner_connection::InnerConnection, raw_statement::RawStatement, types::ValueRef};
 
 #[cfg(feature = "r2d2")]
@@ -295,16 +298,13 @@ impl Connection {
     /// [`Statement::stream_arrow`] iterator is active on the same
     /// [`Connection`]. Other connection-level APIs remain unsafe during an open
     /// stream; DuckDB permits only one active stream per connection.
-    #[cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+    #[cfg(feature = "variant-arrow")]
     pub fn parquet_variant_bytes_to_json(&self, metadata: &[u8], value: &[u8]) -> Result<String> {
-        use std::ffi::CStr;
-        use std::ptr;
-
         let database = self.raw_database();
 
         unsafe {
             let mut out: *mut std::os::raw::c_char = ptr::null_mut();
-            let status = ffi::duckdb_rs_parquet_variant_bytes_to_json(
+            let status = ffi::duckdb_parquet_variant_bytes_to_json(
                 database,
                 metadata.as_ptr(),
                 metadata.len() as ffi::idx_t,

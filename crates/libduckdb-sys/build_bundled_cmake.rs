@@ -112,11 +112,10 @@ pub fn main(_out_dir: &str, out_path: &Path) {
     let lib_dir = dst.join("lib");
     validate_extension_libraries(&lib_dir, &cmake_build_type, &enabled_extensions);
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    // NOTE: the arrow.parquet.variant shim (wrapper_variant_arrow.cpp) is
-    // intentionally not built here. It requires the ArrowAppender::Finalize
-    // fix that build_bundled_cc.rs patches into the extracted sources, and
-    // this backend compiles the pristine duckdb-sources submodule. VARIANT
-    // result columns are not exportable to Arrow with this backend.
+    // NOTE: VARIANT Arrow support is provided by DuckDB libraries that export
+    // duckdb_register_parquet_variant_arrow and duckdb_parquet_variant_bytes_to_json.
+    // The bundled-cmake backend builds the pristine duckdb-sources submodule, so
+    // it only supports that feature after the submodule contains those symbols.
     // Emit in dependents-before-dependencies order for single-pass linkers:
     // loader → extensions → duckdb_static (which satisfies all core symbols).
     link_static_library(&lib_dir, &cmake_build_type, "duckdb_generated_extension_loader");

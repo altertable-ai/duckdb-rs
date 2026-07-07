@@ -193,13 +193,6 @@ pub fn main(out_dir: &str, out_path: &Path) {
     cfg.define("DUCKDB_EXTENSION_AUTOINSTALL_DEFAULT", "1");
     cfg.define("DUCKDB_EXTENSION_AUTOLOAD_DEFAULT", "1");
 
-    // The arrow.parquet.variant registration shim depends on the parquet
-    // extension's variant conversion code.
-    if cfg!(feature = "parquet") {
-        cfg.file("wrapper_variant_arrow.cpp");
-        println!("cargo:rerun-if-changed=wrapper_variant_arrow.cpp");
-    }
-
     println!("cargo:rerun-if-changed=duckdb.tar.gz");
 
     cfg.include("duckdb");
