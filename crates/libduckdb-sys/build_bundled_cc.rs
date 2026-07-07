@@ -113,8 +113,42 @@ fn untar_archive(out_dir: &str) {
     archive.unpack(out_dir).expect("archive");
 }
 
+// Upstream's ArrowAppender::Finalize finalizes each column with its logical
+// type, even when an Arrow type extension appended the data using the
+// extension's *internal* type. For extensions whose internal type is nested
+// (like the arrow.parquet.variant shim's struct of metadata/value), the
+// finalizer then walks the logical type's children (VARIANT's physical
+// struct) against append data laid out for the internal type and crashes.
+// Patch Finalize to use the internal type. TODO: upstream this fix.
+const ARROW_APPENDER_FINALIZE_UPSTREAM: &str = "\
+	for (idx_t i = 0; i < root_holder->child_data.size(); i++) {
+		root_holder->child_arrays[i] = *ArrowAppender::FinalizeChild(types[i], std::move(root_holder->child_data[i]));
+	}";
+const ARROW_APPENDER_FINALIZE_PATCHED: &str = "\
+	for (idx_t i = 0; i < root_holder->child_data.size(); i++) {
+		auto &child_data = root_holder->child_data[i];
+		const LogicalType child_type =
+		    child_data->extension_data ? child_data->extension_data->GetInternalType() : types[i];
+		root_holder->child_arrays[i] =
+		    *ArrowAppender::FinalizeChild(child_type, std::move(root_holder->child_data[i]));
+	}";
+
+fn patch_arrow_appender_finalize(out_dir: &str) {
+    let path = format!("{out_dir}/duckdb/src/common/arrow/arrow_appender.cpp");
+    let source = std::fs::read_to_string(&path).expect("reading arrow_appender.cpp");
+    assert!(
+        source.contains(ARROW_APPENDER_FINALIZE_UPSTREAM),
+        "ArrowAppender::Finalize in {path} no longer matches the expected upstream code; \
+         check whether the extension-internal-type finalization bug still exists and update \
+         ARROW_APPENDER_FINALIZE_UPSTREAM/PATCHED accordingly"
+    );
+    let patched = source.replace(ARROW_APPENDER_FINALIZE_UPSTREAM, ARROW_APPENDER_FINALIZE_PATCHED);
+    std::fs::write(&path, patched).expect("writing patched arrow_appender.cpp");
+}
+
 pub fn main(out_dir: &str, out_path: &Path) {
     untar_archive(out_dir);
+    patch_arrow_appender_finalize(out_dir);
 
     let include_path = Path::new(out_dir).join("duckdb/src/include");
     write_bindings(&include_path, out_path);
@@ -158,6 +192,13 @@ pub fn main(out_dir: &str, out_path: &Path) {
 
     cfg.define("DUCKDB_EXTENSION_AUTOINSTALL_DEFAULT", "1");
     cfg.define("DUCKDB_EXTENSION_AUTOLOAD_DEFAULT", "1");
+
+    // The arrow.parquet.variant registration shim depends on the parquet
+    // extension's variant conversion code.
+    if cfg!(feature = "parquet") {
+        cfg.file("wrapper_variant_arrow.cpp");
+        println!("cargo:rerun-if-changed=wrapper_variant_arrow.cpp");
+    }
 
     println!("cargo:rerun-if-changed=duckdb.tar.gz");
 

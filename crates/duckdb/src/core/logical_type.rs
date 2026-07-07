@@ -91,6 +91,8 @@ pub enum LogicalTypeId {
     IntegerLiteral = DUCKDB_TYPE_DUCKDB_TYPE_INTEGER_LITERAL,
     /// Time NS
     TimeNs = DUCKDB_TYPE_DUCKDB_TYPE_TIME_NS,
+    /// Variant
+    Variant = DUCKDB_TYPE_DUCKDB_TYPE_VARIANT,
     /// DuckDB returned a type that this wrapper does not yet recognize
     Unsupported = u32::MAX,
 }
@@ -139,6 +141,7 @@ impl From<u32> for LogicalTypeId {
             DUCKDB_TYPE_DUCKDB_TYPE_STRING_LITERAL => Self::StringLiteral,
             DUCKDB_TYPE_DUCKDB_TYPE_INTEGER_LITERAL => Self::IntegerLiteral,
             DUCKDB_TYPE_DUCKDB_TYPE_TIME_NS => Self::TimeNs,
+            DUCKDB_TYPE_DUCKDB_TYPE_VARIANT => Self::Variant,
             // Unknown / forward compatible types
             _ => Self::Unsupported,
         }

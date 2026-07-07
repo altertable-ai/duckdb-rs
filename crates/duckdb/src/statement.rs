@@ -122,6 +122,12 @@ impl Statement<'_> {
     /// Execute the prepared statement, returning a handle to the resulting
     /// vector of arrow RecordBatch in streaming way
     ///
+    /// While the returned [`ArrowStream`] is alive, this connection must not be
+    /// used for other queries or connection-level APIs. DuckDB allows only one
+    /// active streaming result per connection. Database-scoped helpers such as
+    /// [`Connection::parquet_variant_bytes_to_json`] do not use this connection
+    /// and remain safe during streaming.
+    ///
     /// ## Example
     ///
     /// ```rust,no_run

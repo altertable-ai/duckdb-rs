@@ -527,6 +527,7 @@ pub fn flat_vector_to_arrow_array(
         LogicalTypeId::StringLiteral => todo!(),
         LogicalTypeId::IntegerLiteral => todo!(),
         LogicalTypeId::TimeNs => todo!(),
+        LogicalTypeId::Variant => todo!(),
     }
 }
 

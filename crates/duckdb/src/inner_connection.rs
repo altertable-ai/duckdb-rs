@@ -101,7 +101,22 @@ impl InnerConnection {
 
     #[inline]
     pub(crate) unsafe fn new_from_raw_db(raw: ffi::duckdb_database, close_on_drop: bool) -> Result<Self> {
+        // Registers the arrow.parquet.variant type extension so VARIANT
+        // columns can be exported through the Arrow C interface. Best-effort:
+        // without it, queries with VARIANT result columns fail during Arrow
+        // conversion.
+        #[cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+        unsafe {
+            ffi::duckdb_rs_register_variant_arrow(raw);
+        }
         unsafe { Self::new(Arc::new(Mutex::new(DatabaseHandle::new(raw, close_on_drop)))) }
+    }
+
+    pub fn raw_database(&self) -> ffi::duckdb_database {
+        self.database
+            .lock()
+            .expect("database handle mutex poisoned")
+            .raw()
     }
 
     pub fn close(&mut self) -> Result<()> {

@@ -14,6 +14,32 @@ pub use bindings::*;
 mod string;
 pub use string::*;
 
+// Only available in the cc bundled backend: the shim depends on the
+// ArrowAppender::Finalize fix that build_bundled_cc.rs patches into the
+// extracted sources, while bundled-cmake compiles the pristine submodule.
+#[cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+unsafe extern "C" {
+    /// Registers the `arrow.parquet.variant` Arrow type extension on the
+    /// given database so `VARIANT` columns can be exported to (and imported
+    /// from) Arrow. Provided by `wrapper_variant_arrow.cpp`, which is
+    /// compiled with the bundled sources when the `parquet` feature is
+    /// enabled. Idempotent per database instance.
+    pub fn duckdb_rs_register_variant_arrow(database: duckdb_database) -> duckdb_state;
+
+    /// Decodes canonical `arrow.parquet.variant` metadata/value blobs to a JSON
+    /// string using DuckDB's VARIANT parser. `out_json` must be freed with
+    /// `duckdb_free`. Uses an ephemeral client context on the database; does
+    /// not require or touch the caller's connection.
+    pub fn duckdb_rs_parquet_variant_bytes_to_json(
+        database: duckdb_database,
+        metadata: *const u8,
+        metadata_len: idx_t,
+        value: *const u8,
+        value_len: idx_t,
+        out_json: *mut *mut ::std::os::raw::c_char,
+    ) -> duckdb_state;
+}
+
 pub const DuckDBError: duckdb_state = duckdb_state_DuckDBError;
 pub const DuckDBSuccess: duckdb_state = duckdb_state_DuckDBSuccess;
 

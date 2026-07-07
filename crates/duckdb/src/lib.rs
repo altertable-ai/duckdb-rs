@@ -272,8 +272,56 @@ pub struct Connection {
 unsafe impl Send for Connection {}
 
 impl Connection {
+    /// Returns the underlying DuckDB C connection handle.
+    ///
+    /// This is intended for calling DuckDB C API functions that are not yet
+    /// wrapped by this crate. The returned pointer is only valid for as long
+    /// as this [`Connection`] remains open; do not use it after the connection
+    /// is dropped.
     pub fn raw_connection(&self) -> ffi::duckdb_connection {
         self.db.borrow().con
+    }
+
+    /// Returns the underlying DuckDB C database handle shared by all
+    /// connections opened from the same [`Connection`].
+    pub fn raw_database(&self) -> ffi::duckdb_database {
+        self.db.borrow().raw_database()
+    }
+
+    /// Decodes `arrow.parquet.variant` metadata/value blobs to a JSON string.
+    ///
+    /// This is a pure bytes-to-JSON conversion on the database instance; it
+    /// does not use the caller's connection and is safe to call while a
+    /// [`Statement::stream_arrow`] iterator is active on the same
+    /// [`Connection`]. Other connection-level APIs remain unsafe during an open
+    /// stream; DuckDB permits only one active stream per connection.
+    #[cfg(all(feature = "parquet", not(feature = "bundled-cmake")))]
+    pub fn parquet_variant_bytes_to_json(&self, metadata: &[u8], value: &[u8]) -> Result<String> {
+        use std::ffi::CStr;
+        use std::ptr;
+
+        let database = self.raw_database();
+
+        unsafe {
+            let mut out: *mut std::os::raw::c_char = ptr::null_mut();
+            let status = ffi::duckdb_rs_parquet_variant_bytes_to_json(
+                database,
+                metadata.as_ptr(),
+                metadata.len() as ffi::idx_t,
+                value.as_ptr(),
+                value.len() as ffi::idx_t,
+                &mut out,
+            );
+            if status != ffi::DuckDBSuccess || out.is_null() {
+                return Err(Error::DuckDBFailure(
+                    ffi::Error::new(status),
+                    Some("failed to decode parquet variant bytes to JSON".to_owned()),
+                ));
+            }
+            let json = CStr::from_ptr(out).to_string_lossy().into_owned();
+            ffi::duckdb_free(out as *mut _);
+            Ok(json)
+        }
     }
 
     /// Open a new connection to a DuckDB database.
