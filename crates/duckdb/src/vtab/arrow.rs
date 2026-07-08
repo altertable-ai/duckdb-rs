@@ -227,6 +227,48 @@ impl TryFrom<DataType> for LogicalTypeId {
     }
 }
 
+/// Metadata key used by Altertable to mark UTF-8 columns as JSON payloads.
+const ARROW_EXTENSION_NAME_KEY: &str = "ARROW:extension:name";
+const ARROW_JSON_EXTENSION: &str = "arrow.json";
+const ARROW_PARQUET_VARIANT_EXTENSION: &str = "arrow.parquet.variant";
+const JSON_LOGICAL_TYPE_ALIAS: &str = "JSON";
+
+fn field_is_json_utf8(field: &Field) -> bool {
+    if !matches!(
+        field.data_type(),
+        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
+    ) {
+        return false;
+    }
+
+    field
+        .metadata()
+        .get(ARROW_EXTENSION_NAME_KEY)
+        .is_some_and(|value| value == ARROW_JSON_EXTENSION)
+}
+
+fn field_is_parquet_variant_storage(field: &Field) -> bool {
+    field
+        .metadata()
+        .get(ARROW_EXTENSION_NAME_KEY)
+        .is_some_and(|value| value == ARROW_PARQUET_VARIANT_EXTENSION)
+}
+
+/// Convert an Arrow field to DuckDB logical type, honoring JSON/VARIANT metadata.
+pub fn to_duckdb_logical_type_for_field(field: &Field) -> Result<LogicalTypeHandle, Box<dyn std::error::Error>> {
+    if field_is_json_utf8(field) {
+        let mut logical_type = LogicalTypeHandle::from(LogicalTypeId::Varchar);
+        logical_type.set_alias(JSON_LOGICAL_TYPE_ALIAS);
+        return Ok(logical_type);
+    }
+
+    if field_is_parquet_variant_storage(field) {
+        return Ok(LogicalTypeHandle::from(LogicalTypeId::Variant));
+    }
+
+    to_duckdb_logical_type(field.data_type())
+}
+
 /// Convert arrow DataType to DuckDB logical type
 pub fn to_duckdb_logical_type(data_type: &DataType) -> Result<LogicalTypeHandle, Box<dyn std::error::Error>> {
     match data_type {

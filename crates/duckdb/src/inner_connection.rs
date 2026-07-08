@@ -113,10 +113,7 @@ impl InnerConnection {
     }
 
     pub fn raw_database(&self) -> ffi::duckdb_database {
-        self.database
-            .lock()
-            .expect("database handle mutex poisoned")
-            .raw()
+        self.database.lock().expect("database handle mutex poisoned").raw()
     }
 
     pub fn close(&mut self) -> Result<()> {

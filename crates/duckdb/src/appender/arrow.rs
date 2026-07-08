@@ -3,7 +3,7 @@ use crate::{
     Error,
     core::DataChunkHandle,
     error::result_from_duckdb_appender,
-    vtab::{record_batch_to_duckdb_data_chunk, to_duckdb_logical_type},
+    vtab::{record_batch_to_duckdb_data_chunk, to_duckdb_logical_type_for_field},
 };
 use arrow::record_batch::RecordBatch;
 use ffi::{duckdb_append_data_chunk, duckdb_vector_size};
@@ -34,7 +34,7 @@ impl Appender<'_> {
         let mut logical_types = Vec::with_capacity(capacity);
         for field in fields.iter() {
             logical_types.push(
-                to_duckdb_logical_type(field.data_type())
+                to_duckdb_logical_type_for_field(field.as_ref())
                     .map_err(|_op| Error::ArrowTypeToDuckdbType(field.to_string(), field.data_type().clone()))?,
             );
         }
@@ -95,6 +95,40 @@ mod test {
         let mut stmt = db.prepare("SELECT id, area, name FROM foo")?;
         let rbs: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
         assert_eq!(rbs.iter().map(|op| op.num_rows()).sum::<usize>(), 5);
+        Ok(())
+    }
+
+    #[test]
+    fn test_append_record_batch_json_extension_to_variant_column() -> Result<()> {
+        use std::collections::HashMap;
+
+        let db = Connection::open_in_memory()?;
+        db.execute_batch("LOAD json; CREATE TABLE logs (attributes VARIANT NOT NULL)")?;
+
+        let mut metadata = HashMap::new();
+        metadata.insert("ARROW:extension:name".to_owned(), "arrow.json".to_owned());
+        metadata.insert("ARROW:extension:metadata".to_owned(), String::new());
+        let attributes = StringArray::from(vec![Some(
+            r#"{"v":42,"attr.key":"attr-val","attr.key2":"attr-val2"}"#.to_owned(),
+        )]);
+        let schema = Schema::new(vec![
+            Field::new("attributes", DataType::Utf8, false).with_metadata(metadata),
+        ]);
+        let record_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(attributes)]).unwrap();
+
+        let mut app = db.appender("logs")?;
+        app.append_record_batch(record_batch)?;
+        app.flush()?;
+
+        let count: i64 = db.query_row("SELECT COUNT(*) FROM logs", [], |row| row.get(0))?;
+        assert_eq!(count, 1, "append should insert one row");
+
+        let rendered: String = db.query_row("SELECT attributes::VARCHAR FROM logs", [], |row| row.get(0))?;
+        assert!(
+            rendered.contains("'v': 42") && rendered.contains("'attr.key':"),
+            "expected structured VARIANT object, got {rendered}"
+        );
+
         Ok(())
     }
 

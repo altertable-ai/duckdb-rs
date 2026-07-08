@@ -1,6 +1,6 @@
 use super::{
-    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     Result, Statement,
+    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
 };
 
 /// A handle for the resulting RecordBatch of a query.

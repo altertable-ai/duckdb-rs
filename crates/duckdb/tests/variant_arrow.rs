@@ -84,9 +84,7 @@ fn variant_stream_arrow_returns_parquet_variant_struct() -> Result<()> {
     ]));
     let mut stmt = conn.prepare("SELECT * FROM t")?;
 
-    let batches: Vec<RecordBatch> = stmt
-        .stream_arrow([], caller_schema)?
-        .collect::<Result<Vec<_>>>()?;
+    let batches: Vec<RecordBatch> = stmt.stream_arrow([], caller_schema)?.collect::<Result<Vec<_>>>()?;
 
     assert_eq!(batches.len(), 1);
     assert_variant_struct_batch(&batches[0]);
