@@ -7,6 +7,10 @@ use crate::{
 
 use super::{UUID_BYTE_WIDTH, UUID_EXTENSION_NAME};
 
+const ARROW_JSON_EXTENSION: &str = "arrow.json";
+const ARROW_PARQUET_VARIANT_EXTENSION: &str = "arrow.parquet.variant";
+const JSON_LOGICAL_TYPE_ALIAS: &str = "JSON";
+
 /// Convert Arrow [`DataType`] to DuckDB type id.
 pub fn to_duckdb_type_id(data_type: &DataType) -> Result<LogicalTypeId, Box<dyn std::error::Error>> {
     use LogicalTypeId::*;
@@ -120,8 +124,20 @@ pub fn to_duckdb_logical_type(data_type: &DataType) -> Result<LogicalTypeHandle,
 pub fn to_duckdb_logical_type_for_field(field: &Field) -> Result<LogicalTypeHandle, Box<dyn std::error::Error>> {
     match field.extension_type_name() {
         Some(UUID_EXTENSION_NAME) => arrow_uuid_logical_type(field),
+        Some(ARROW_JSON_EXTENSION) if is_utf8_arrow_type(field.data_type()) => arrow_json_logical_type(),
+        Some(ARROW_PARQUET_VARIANT_EXTENSION) => Ok(LogicalTypeHandle::from(LogicalTypeId::Variant)),
         _ => to_duckdb_logical_type(field.data_type()),
     }
+}
+
+fn is_utf8_arrow_type(data_type: &DataType) -> bool {
+    matches!(data_type, DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View)
+}
+
+fn arrow_json_logical_type() -> Result<LogicalTypeHandle, Box<dyn std::error::Error>> {
+    let mut logical_type = LogicalTypeHandle::from(LogicalTypeId::Varchar);
+    logical_type.set_alias(JSON_LOGICAL_TYPE_ALIAS);
+    Ok(logical_type)
 }
 
 fn arrow_uuid_logical_type(field: &Field) -> Result<LogicalTypeHandle, Box<dyn std::error::Error>> {

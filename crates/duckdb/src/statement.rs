@@ -135,7 +135,13 @@ impl Statement<'_> {
     /// as the iterator is consumed instead of buffering the full result on
     /// the client side. Note that DuckDB may still materialize the result
     /// internally for some statements (e.g. CALL). The schema is available
-    /// via [`Arrow::get_schema`].
+    /// via [`ArrowStream::get_schema`].
+    ///
+    /// While the returned [`ArrowStream`] is alive, this connection must not be
+    /// used for other queries or connection-level APIs. DuckDB allows only one
+    /// active streaming result per connection. Database-scoped helpers such as
+    /// `Connection::parquet_variant_bytes_to_json` do not use this connection
+    /// and remain safe during streaming.
     ///
     /// ## Example
     ///
@@ -700,11 +706,13 @@ mod test {
         record_batch::RecordBatch,
     };
 
+    #[cfg(not(feature = "variant-arrow"))]
+    use crate::types::Type;
     use crate::{
         Connection, Error, Result, Statement,
         core::{LogicalTypeId, RawLogicalTypeId},
         params_from_iter,
-        types::{Decimal, ListType, OrderedMap, ToSql, ToSqlOutput, Type, Value, ValueRef},
+        types::{Decimal, ListType, OrderedMap, ToSql, ToSqlOutput, Value, ValueRef},
     };
 
     struct BorrowedList(ListArray);
@@ -734,6 +742,7 @@ mod test {
         }
     }
 
+    #[cfg(not(feature = "variant-arrow"))]
     fn assert_variant_decode_error(err: Error, expected_idx: usize) {
         match err {
             Error::FromSqlConversionFailure(idx, Type::Variant, e) => {
@@ -2140,6 +2149,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "variant-arrow"))]
     fn test_variant_result_decode_unsupported() -> Result<()> {
         let db = Connection::open_in_memory()?;
 
@@ -2156,6 +2166,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "variant-arrow"))]
     fn test_variant_streaming_result_decode_unsupported() -> Result<()> {
         let db = Connection::open_in_memory()?;
         let err = match db
@@ -2171,6 +2182,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "variant-arrow"))]
     fn test_variant_returning_execute_rejected_before_mutation() -> Result<()> {
         let db = Connection::open_in_memory()?;
         db.execute_batch("CREATE TABLE t(id INTEGER, v VARIANT);")?;
@@ -2187,6 +2199,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "variant-arrow"))]
     fn test_variant_returning_streaming_rejected_before_mutation() -> Result<()> {
         let db = Connection::open_in_memory()?;
         db.execute_batch("CREATE TABLE t(id INTEGER, v VARIANT);")?;
@@ -2206,6 +2219,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(feature = "variant-arrow"))]
     fn test_nested_variant_result_decode_unsupported() -> Result<()> {
         let db = Connection::open_in_memory()?;
 
