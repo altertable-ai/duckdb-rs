@@ -14,13 +14,13 @@ use arrow::{
 };
 
 use super::{Result, ffi};
+#[cfg(not(feature = "variant-arrow"))]
+use crate::{Error, types::Type};
 use crate::{
-    Error,
     core::{LogicalTypeHandle, LogicalTypeId},
     error::{
         arrow_conversion_failure, duckdb_failure_from_message, result_error_message, result_from_duckdb_error_data,
     },
-    types::Type,
 };
 #[cfg(feature = "polars")]
 use polars_core::utils::arrow as polars_arrow;
@@ -324,7 +324,9 @@ pub(crate) unsafe fn logical_type_from_duckdb_column(
 }
 
 pub(crate) fn reject_unsupported_result_logical_type(idx: usize, logical_type: &LogicalTypeHandle) -> Result<()> {
-    if logical_type.contains_type_id(LogicalTypeId::Variant) {
+    let has_variant = logical_type.contains_type_id(LogicalTypeId::Variant);
+    #[cfg(not(feature = "variant-arrow"))]
+    if has_variant {
         return Err(Error::FromSqlConversionFailure(
             idx,
             Type::Variant,
@@ -332,6 +334,7 @@ pub(crate) fn reject_unsupported_result_logical_type(idx: usize, logical_type: &
         ));
     }
 
+    let _ = (idx, has_variant);
     Ok(())
 }
 

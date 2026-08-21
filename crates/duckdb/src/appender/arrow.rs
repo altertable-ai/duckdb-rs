@@ -190,6 +190,41 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "json")]
+    fn test_append_record_batch_json_extension_to_variant_column() -> Result<()> {
+        use std::collections::HashMap;
+
+        let db = Connection::open_in_memory()?;
+        db.execute_batch("LOAD json; CREATE TABLE logs (attributes VARIANT NOT NULL)")?;
+
+        let mut metadata = HashMap::new();
+        metadata.insert("ARROW:extension:name".to_owned(), "arrow.json".to_owned());
+        metadata.insert("ARROW:extension:metadata".to_owned(), String::new());
+        let attributes = StringArray::from(vec![Some(
+            r#"{"v":42,"attr.key":"attr-val","attr.key2":"attr-val2"}"#.to_owned(),
+        )]);
+        let schema = Schema::new(vec![
+            Field::new("attributes", DataType::Utf8, false).with_metadata(metadata),
+        ]);
+        let record_batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(attributes)]).unwrap();
+
+        let mut app = db.appender("logs")?;
+        app.append_record_batch(record_batch)?;
+        app.flush()?;
+
+        let count: i64 = db.query_row("SELECT COUNT(*) FROM logs", [], |row| row.get(0))?;
+        assert_eq!(count, 1, "append should insert one row");
+
+        let rendered: String = db.query_row("SELECT attributes::VARCHAR FROM logs", [], |row| row.get(0))?;
+        assert!(
+            rendered.contains("'v': 42") && rendered.contains("'attr.key':"),
+            "expected structured VARIANT object, got {rendered}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_append_record_batch_large() -> Result<()> {
         let record_count = usize::pow(2, 16) + 1;
         let db = Connection::open_in_memory()?;
