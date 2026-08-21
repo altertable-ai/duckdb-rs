@@ -25,6 +25,29 @@ pub use bindings::*;
 mod string;
 pub use string::*;
 
+// Available when linking a DuckDB library that exports the Altertable
+// parquet VARIANT Arrow helpers.
+#[cfg(feature = "variant-arrow")]
+unsafe extern "C" {
+    /// Registers the `arrow.parquet.variant` Arrow type extension on the
+    /// given database so `VARIANT` columns can be exported to (and imported
+    /// from) Arrow. Idempotent per database instance.
+    pub fn duckdb_register_parquet_variant_arrow(database: duckdb_database) -> duckdb_state;
+
+    /// Decodes canonical `arrow.parquet.variant` metadata/value blobs to a JSON
+    /// string using DuckDB's VARIANT parser. `out_json` must be freed with
+    /// `duckdb_free`. Uses an ephemeral client context on the database; does
+    /// not require or touch the caller's connection.
+    pub fn duckdb_parquet_variant_bytes_to_json(
+        database: duckdb_database,
+        metadata: *const u8,
+        metadata_len: idx_t,
+        value: *const u8,
+        value_len: idx_t,
+        out_json: *mut *mut ::std::os::raw::c_char,
+    ) -> duckdb_state;
+}
+
 pub const DuckDBError: duckdb_state = duckdb_state_DuckDBError;
 pub const DuckDBSuccess: duckdb_state = duckdb_state_DuckDBSuccess;
 

@@ -132,6 +132,10 @@ The `duckdb` crate provides a number of Cargo features that can be enabled to ad
 - `json` - Enables reading and writing JSON files. Implies `bundled`.
 - `parquet` - Enables reading and writing Parquet files. Implies `bundled`.
 
+### Data type interoperability
+
+- `variant-arrow` - Enables Arrow export/import support for DuckDB `VARIANT` columns through the canonical `arrow.parquet.variant` Arrow extension. Does not imply `bundled` or `parquet`; the linked DuckDB library must export `duckdb_register_parquet_variant_arrow` and `duckdb_parquet_variant_bytes_to_json`.
+
 ### Bundled DuckDB extensions
 
 These extensions are only available through the CMake build backend and imply `bundled-cmake`.

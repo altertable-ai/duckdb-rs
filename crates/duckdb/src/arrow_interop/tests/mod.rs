@@ -118,11 +118,46 @@ fn test_arrow_uuid_extension_rejects_invalid_storage() {
 fn test_arrow_unknown_extension_falls_back_to_storage_type() -> Result<(), Box<dyn Error>> {
     let field = Field::new("payload", DataType::Utf8, true).with_metadata(HashMap::from([(
         ARROW_EXTENSION_NAME_KEY.to_string(),
+        "arrow.custom.unknown".to_string(),
+    )]));
+
+    let logical_type = to_duckdb_logical_type_for_field(&field)?;
+    assert_eq!(logical_type.id(), LogicalTypeId::Varchar);
+
+    Ok(())
+}
+
+#[test]
+fn test_arrow_json_extension_sets_json_alias() -> Result<(), Box<dyn Error>> {
+    let field = Field::new("payload", DataType::Utf8, true).with_metadata(HashMap::from([(
+        ARROW_EXTENSION_NAME_KEY.to_string(),
         "arrow.json".to_string(),
     )]));
 
     let logical_type = to_duckdb_logical_type_for_field(&field)?;
     assert_eq!(logical_type.id(), LogicalTypeId::Varchar);
+    assert_eq!(logical_type.get_alias().as_deref(), Some("JSON"));
+
+    Ok(())
+}
+
+#[test]
+fn test_arrow_parquet_variant_extension_maps_to_variant() -> Result<(), Box<dyn Error>> {
+    let field = Field::new(
+        "attributes",
+        DataType::Struct(Fields::from(vec![
+            Field::new("metadata", DataType::Binary, false),
+            Field::new("value", DataType::Binary, true),
+        ])),
+        true,
+    )
+    .with_metadata(HashMap::from([(
+        ARROW_EXTENSION_NAME_KEY.to_string(),
+        "arrow.parquet.variant".to_string(),
+    )]));
+
+    let logical_type = to_duckdb_logical_type_for_field(&field)?;
+    assert_eq!(logical_type.id(), LogicalTypeId::Variant);
 
     Ok(())
 }
