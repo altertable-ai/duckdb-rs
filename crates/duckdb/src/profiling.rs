@@ -103,6 +103,22 @@ impl ProfilingInfo {
         unsafe { libduckdb_sys::DuckDbString::from_nullable_ptr(ptr) }
             .map(|varchar| varchar.to_string_lossy().to_string())
     }
+
+    #[cfg(feature = "profiling-snapshot")]
+    fn from_snapshot(info: libduckdb_sys::duckdb_profiling_info) -> Option<Self> {
+        let _snapshot = ProfilingInfoSnapshot(info);
+        Self::from_raw(info)
+    }
+}
+
+#[cfg(feature = "profiling-snapshot")]
+struct ProfilingInfoSnapshot(libduckdb_sys::duckdb_profiling_info);
+
+#[cfg(feature = "profiling-snapshot")]
+impl Drop for ProfilingInfoSnapshot {
+    fn drop(&mut self) {
+        unsafe { libduckdb_sys::duckdb_destroy_profiling_info_snapshot(&mut self.0) };
+    }
 }
 
 impl InnerConnection {
@@ -111,12 +127,23 @@ impl InnerConnection {
         let info = unsafe { libduckdb_sys::duckdb_get_profiling_info(self.con) };
         ProfilingInfo::from_raw(info)
     }
+
+    #[cfg(feature = "profiling-snapshot")]
+    fn get_profiling_info_snapshot(&self) -> Option<ProfilingInfo> {
+        let info = unsafe { libduckdb_sys::duckdb_get_profiling_info_snapshot(self.con) };
+        ProfilingInfo::from_snapshot(info)
+    }
 }
 
 impl Connection {
     /// Retrieves the [`ProfilingInfo`] for the last executed query, if profiling is enabled.
     pub fn get_profiling_info(&self) -> Option<ProfilingInfo> {
         self.db.borrow().get_profiling_info()
+    }
+
+    #[cfg(feature = "profiling-snapshot")]
+    pub(crate) fn get_profiling_info_snapshot(&self) -> Option<ProfilingInfo> {
+        self.db.borrow().get_profiling_info_snapshot()
     }
 }
 
@@ -158,5 +185,24 @@ mod tests {
             info.metrics.get("ROWS_RETURNED").unwrap() == "1",
             "ROWS_RETURNED should be 1"
         );
+    }
+
+    #[cfg(feature = "profiling-snapshot")]
+    #[test]
+    fn test_profiling_info_during_arrow_stream_does_not_interrupt_stream() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("PRAGMA enable_profiling = 'no_output'", []).unwrap();
+
+        let mut stmt = conn.prepare("SELECT range FROM range(5000)").unwrap();
+        let mut stream = stmt.stream_arrow([]).unwrap();
+        let first_batch = stream.next().unwrap().unwrap();
+
+        let info = stream
+            .get_profiling_info_snapshot()
+            .expect("profiling should be available during streaming");
+        assert!(!info.children.is_empty());
+
+        let remaining_rows = stream.map(|batch| batch.unwrap().num_rows()).sum::<usize>();
+        assert_eq!(first_batch.num_rows() + remaining_rows, 5000);
     }
 }

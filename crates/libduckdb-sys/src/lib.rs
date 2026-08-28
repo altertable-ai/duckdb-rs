@@ -48,6 +48,19 @@ unsafe extern "C" {
     ) -> duckdb_state;
 }
 
+// Available when linking an Altertable DuckDB library that exports owned
+// profiling snapshots.
+#[cfg(feature = "profiling-snapshot")]
+unsafe extern "C" {
+    /// Copies the current profiling tree while holding DuckDB's profiler lock.
+    /// The returned tree must be released with
+    /// `duckdb_destroy_profiling_info_snapshot`.
+    pub fn duckdb_get_profiling_info_snapshot(connection: duckdb_connection) -> duckdb_profiling_info;
+
+    /// Releases an owned profiling snapshot and sets its pointer to null.
+    pub fn duckdb_destroy_profiling_info_snapshot(info: *mut duckdb_profiling_info);
+}
+
 pub const DuckDBError: duckdb_state = duckdb_state_DuckDBError;
 pub const DuckDBSuccess: duckdb_state = duckdb_state_DuckDBSuccess;
 

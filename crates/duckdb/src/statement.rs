@@ -138,9 +138,10 @@ impl Statement<'_> {
     ///
     /// While the returned [`ArrowStream`] is alive, this connection must not be
     /// used for other queries or connection-level APIs. DuckDB allows only one
-    /// active streaming result per connection. Database-scoped helpers such as
-    /// `Connection::parquet_variant_bytes_to_json` do not use this connection
-    /// and remain safe during streaming.
+    /// active streaming result per connection. Read-only stream accessors such
+    /// as [`ArrowStream::get_profiling_info_snapshot`] and database-scoped
+    /// helpers such as `Connection::parquet_variant_bytes_to_json` do not
+    /// execute another query and remain safe during streaming.
     ///
     /// ## Example
     ///
@@ -421,6 +422,12 @@ impl Statement<'_> {
     #[inline]
     pub fn step(&self) -> Result<Option<StructArray>> {
         self.stmt.step()
+    }
+
+    #[cfg(feature = "profiling-snapshot")]
+    #[inline]
+    pub(crate) fn get_profiling_info_snapshot(&self) -> Option<crate::profiling::ProfilingInfo> {
+        self.conn.get_profiling_info_snapshot()
     }
 
     #[cfg(feature = "polars")]
