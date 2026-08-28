@@ -598,6 +598,15 @@ impl Statement<'_> {
         self.stmt.schema()
     }
 
+    /// Returns the underlying DuckDB C prepared-statement handle.
+    ///
+    /// The pointer remains owned by this statement and must not be destroyed.
+    /// It is valid only while this statement is alive.
+    #[inline]
+    pub fn raw_statement(&self) -> ffi::duckdb_prepared_statement {
+        unsafe { self.stmt.ptr() }
+    }
+
     #[inline]
     pub(crate) fn result_column_logical_id(&self, idx: usize) -> Option<LogicalTypeId> {
         self.stmt.result_column_logical_id(idx)
@@ -1192,6 +1201,15 @@ mod test {
         db.execute_batch(sql).unwrap();
         let stmt = db.prepare("SELECT x, y FROM foo").unwrap();
         let _ = stmt.schema();
+    }
+
+    #[test]
+    fn test_raw_statement_exposes_pre_execution_metadata() {
+        let db = Connection::open_in_memory().unwrap();
+        let stmt = db.prepare("SELECT 42 AS answer").unwrap();
+
+        let column_count = unsafe { crate::ffi::duckdb_prepared_statement_column_count(stmt.raw_statement()) };
+        assert_eq!(column_count, 1);
     }
 
     #[test]
