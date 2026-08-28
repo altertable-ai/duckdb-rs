@@ -28,6 +28,7 @@ parquet = ["libduckdb-sys/parquet", "bundled"]
 # icu builds via CMake; bundled-icu links it into the cc build.
 bundled-icu = ["libduckdb-sys/bundled-icu", "bundled"]
 variant-arrow = ["libduckdb-sys/variant-arrow"]
+profiling-snapshot = ["libduckdb-sys/profiling-snapshot"]
 autocomplete = ["libduckdb-sys/autocomplete", "bundled-cmake"]
 httpfs = ["libduckdb-sys/httpfs", "bundled-cmake"]
 icu = ["libduckdb-sys/icu", "bundled-cmake"]
