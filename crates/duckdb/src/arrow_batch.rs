@@ -2,6 +2,8 @@ use super::{
     Result, Statement,
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
 };
+#[cfg(feature = "profiling-snapshot")]
+use crate::profiling::ProfilingInfo;
 
 /// A handle for iterating the [`RecordBatch`]es of a query result.
 ///
@@ -67,10 +69,18 @@ impl<'stmt> ArrowStream<'stmt> {
     /// Return the Arrow schema reported by DuckDB after execution.
     #[inline]
     pub fn get_schema(&self) -> SchemaRef {
-        self.stmt
-            .expect("Arrow stream always holds a statement")
-            .stmt
-            .schema()
+        self.stmt.expect("Arrow stream always holds a statement").stmt.schema()
+    }
+
+    /// Copy the current query's profiling information.
+    ///
+    /// DuckDB copies the profiling tree while holding its profiler lock. The
+    /// returned value is independent of subsequent query execution. This
+    /// read-only operation does not invalidate the active streaming result.
+    #[cfg(feature = "profiling-snapshot")]
+    #[inline]
+    pub fn get_profiling_info_snapshot(&self) -> Option<ProfilingInfo> {
+        self.stmt.and_then(Statement::get_profiling_info_snapshot)
     }
 }
 
