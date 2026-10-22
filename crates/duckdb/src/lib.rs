@@ -82,7 +82,7 @@ pub use crate::{
     config::{AccessMode, Config, DefaultNullOrder, DefaultOrder},
     error::Error,
     ffi::ErrorCode,
-    inner_connection::InterruptHandle,
+    inner_connection::{DatabaseLiveness, InterruptHandle},
     params::{Params, ParamsFromIter, params_from_iter},
     progress::{ProgressHandle, QueryProgress},
     row::{AndThenRows, Map, MappedRows, Row, RowIndex, Rows},
@@ -748,6 +748,31 @@ impl Connection {
     /// }
     pub fn interrupt_handle(&self) -> std::sync::Arc<InterruptHandle> {
         self.db.borrow().get_interrupt_handle()
+    }
+
+    /// Get a handle that tells whether the database is still open, without keeping it open.
+    ///
+    /// The database stays open as long as any connection to it exists, including connections
+    /// created with [`Connection::try_clone`].
+    ///
+    /// ## Example
+    ///
+    /// ```rust,no_run
+    /// # use duckdb::{Connection, Result};
+    /// fn check_liveness(conn: Connection) -> Result<()> {
+    ///   let liveness = conn.database_liveness();
+    ///   let clone = conn.try_clone()?;
+    ///
+    ///   drop(conn);
+    ///   assert!(liveness.is_open());
+    ///
+    ///   drop(clone);
+    ///   assert!(!liveness.is_open());
+    ///
+    ///   Ok(())
+    /// }
+    pub fn database_liveness(&self) -> DatabaseLiveness {
+        self.db.borrow().database_liveness()
     }
 
     /// Close the DuckDB connection.
@@ -1744,6 +1769,20 @@ mod test {
         };
 
         assert!(result.is_err_and(|err| err.to_string().contains("INTERRUPT")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_database_liveness_tracks_every_connection() -> Result<()> {
+        let db = checked_memory_handle();
+        let liveness = db.database_liveness();
+        let clone = db.try_clone()?;
+
+        drop(db);
+        assert!(liveness.is_open());
+
+        clone.close().unwrap();
+        assert!(!liveness.is_open());
         Ok(())
     }
 
