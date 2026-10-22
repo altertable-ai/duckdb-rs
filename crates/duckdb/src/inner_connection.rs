@@ -3,7 +3,7 @@ use std::{
     mem,
     os::raw::c_char,
     ptr, str,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 
 use super::{Appender, Config, Connection, Result, ffi};
@@ -114,6 +114,12 @@ impl InnerConnection {
 
     pub fn raw_database(&self) -> ffi::duckdb_database {
         self.database.lock().expect("database handle mutex poisoned").raw()
+    }
+
+    pub fn database_liveness(&self) -> DatabaseLiveness {
+        DatabaseLiveness {
+            database: Arc::downgrade(&self.database),
+        }
     }
 
     pub fn close(&mut self) -> Result<()> {
@@ -290,6 +296,21 @@ impl Drop for InnerConnection {
                 panic!("Error while closing DuckDB connection: {e:?}");
             }
         }
+    }
+}
+
+/// A handle that tells whether a database is still open, without keeping it open.
+#[derive(Clone, Debug)]
+pub struct DatabaseLiveness {
+    database: Weak<Mutex<DatabaseHandle>>,
+}
+
+impl DatabaseLiveness {
+    /// Returns `true` while any [`Connection`] to the database exists.
+    ///
+    /// Once it returns `false`, the database is closed and it never returns `true` again.
+    pub fn is_open(&self) -> bool {
+        self.database.strong_count() > 0
     }
 }
 
