@@ -138,9 +138,10 @@ impl Statement<'_> {
     ///
     /// While the returned [`ArrowStream`] is alive, this connection must not be
     /// used for other queries or connection-level APIs. DuckDB allows only one
-    /// active streaming result per connection. Database-scoped helpers such as
-    /// `Connection::parquet_variant_bytes_to_json` do not use this connection
-    /// and remain safe during streaming.
+    /// active streaming result per connection. Read-only stream accessors such
+    /// as [`ArrowStream::get_profiling_info_snapshot`] and database-scoped
+    /// helpers such as `Connection::parquet_variant_bytes_to_json` do not
+    /// execute another query and remain safe during streaming.
     ///
     /// ## Example
     ///
@@ -423,6 +424,12 @@ impl Statement<'_> {
         self.stmt.step()
     }
 
+    #[cfg(feature = "profiling-snapshot")]
+    #[inline]
+    pub(crate) fn get_profiling_info_snapshot(&self) -> Option<crate::profiling::ProfilingInfo> {
+        self.conn.get_profiling_info_snapshot()
+    }
+
     #[cfg(feature = "polars")]
     #[inline]
     pub(crate) fn step_polars(&self) -> Result<Option<polars_arrow::array::StructArray>> {
@@ -589,6 +596,15 @@ impl Statement<'_> {
     #[inline]
     pub fn schema(&self) -> SchemaRef {
         self.stmt.schema()
+    }
+
+    /// Returns the underlying DuckDB C prepared-statement handle.
+    ///
+    /// The pointer remains owned by this statement and must not be destroyed.
+    /// It is valid only while this statement is alive.
+    #[inline]
+    pub fn raw_statement(&self) -> ffi::duckdb_prepared_statement {
+        unsafe { self.stmt.ptr() }
     }
 
     #[inline]
@@ -1185,6 +1201,15 @@ mod test {
         db.execute_batch(sql).unwrap();
         let stmt = db.prepare("SELECT x, y FROM foo").unwrap();
         let _ = stmt.schema();
+    }
+
+    #[test]
+    fn test_raw_statement_exposes_pre_execution_metadata() {
+        let db = Connection::open_in_memory().unwrap();
+        let stmt = db.prepare("SELECT 42 AS answer").unwrap();
+
+        let column_count = unsafe { crate::ffi::duckdb_prepared_statement_column_count(stmt.raw_statement()) };
+        assert_eq!(column_count, 1);
     }
 
     #[test]
