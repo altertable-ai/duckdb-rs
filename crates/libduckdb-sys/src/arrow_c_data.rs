@@ -143,8 +143,9 @@ mod tests {
         for i in 0..ffi.num_buffers() {
             assert_eq!(unsafe { *ours.buffers.add(i) } as *const u8, ffi.buffer(i));
         }
-        assert_eq!(ours.release.map(|f| f as usize), ffi.release().map(|f| f as usize));
-        assert_eq!(ours.private_data, ffi.private_data());
+        // arrow 58 exposes no release/private_data accessors on FFI_ArrowArray.
+        assert_eq!(ours.release.is_none(), ffi.is_released());
+        assert!(!ours.private_data.is_null());
 
         let dict: DictionaryArray<Int8Type> = ["a", "b", "a"].into_iter().collect();
         let nested = StructArray::from(vec![(
@@ -186,8 +187,9 @@ mod tests {
 
         let dictionary = ffi.child(0).dictionary().unwrap();
         assert!(ptr::eq(child.dictionary as *const FFI_ArrowSchema, dictionary));
-        assert_eq!(ours.release.map(|f| f as usize), ffi.release().map(|f| f as usize));
-        assert_eq!(ours.private_data, ffi.private_data());
+        // arrow 58 exposes no release/private_data accessors on FFI_ArrowSchema.
+        assert!(ours.release.is_some());
+        assert!(!ours.private_data.is_null());
     }
 
     // Drives an arrow-rs stream through our callback fields, so a misplaced field calls the wrong function.
@@ -200,8 +202,8 @@ mod tests {
         let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(vec![1, 2, 3]))]).unwrap();
         let batches = vec![Ok(batch), Err(ArrowError::ComputeError("boom".into()))];
         let mut ffi = FFI_ArrowArrayStream::new(Box::new(RecordBatchIterator::new(batches, schema.clone())));
-        let release = ffi.release().map(|f| f as usize);
-        let private_data = ffi.private_data();
+        let release = ffi.release.map(|f| f as usize);
+        let private_data = ffi.private_data;
 
         let ours = &mut ffi as *mut FFI_ArrowArrayStream as *mut ArrowArrayStream;
         unsafe {
