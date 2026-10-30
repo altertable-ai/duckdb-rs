@@ -76,10 +76,7 @@ fn find_duckdb(out_dir: &str) -> HeaderLocation {
     }
     // Allow users to specify where to find DuckDB. `DUCKDB_LIB_DIR=` clears a
     // shell export for one command; an empty value is the same as unset.
-    if let Some(dir) = env::var("DUCKDB_LIB_DIR")
-        .ok()
-        .filter(|dir| !dir.is_empty())
-    {
+    if let Some(dir) = env::var("DUCKDB_LIB_DIR").ok().filter(|dir| !dir.is_empty()) {
         println!("cargo:rustc-env=LD_LIBRARY_PATH={dir}");
         // Try to use pkg-config to determine link commands
         let pkgconfig_path = Path::new(&dir).join("pkgconfig");
