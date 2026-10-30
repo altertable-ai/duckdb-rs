@@ -67,6 +67,13 @@ fn find_duckdb(out_dir: &str) -> HeaderLocation {
         emit_link_lib("dylib=duckdb");
         return HeaderLocation::Wrapper;
     }
+    // `DUCKDB_DOWNLOAD_LIB=1` forces the pinned download even when the shell
+    // exports `DUCKDB_LIB_DIR` for a different DuckDB checkout.
+    if env::var("DUCKDB_DOWNLOAD_LIB").is_ok_and(|value| matches!(value.to_ascii_lowercase().as_str(), "1" | "true"))
+        && let Some(header) = try_download(out_dir)
+    {
+        return header;
+    }
     // Allow users to specify where to find DuckDB.
     if let Ok(dir) = env::var("DUCKDB_LIB_DIR") {
         println!("cargo:rustc-env=LD_LIBRARY_PATH={dir}");
